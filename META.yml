@@ -1,12 +1,11 @@
 ---
-abstract: 'svn- and git-style option and subcommand processing'
+abstract: 'Option and subcommand processing in the style svn(1) and git(1)'
 author:
   - 'Robert Krimen, C<< <rkrimen at cpan.org> >>'
 build_requires:
-  Test::More: 0
   Test::Most: 0
 distribution_type: module
-generated_by: 'Module::Install version 0.76'
+generated_by: 'Module::Install version 0.760'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -19,7 +18,10 @@ no_index:
 requires:
   Carp::Clan::Share: 0
   Getopt::Long: 2.37
+  Hash::Param: 0
   Moose: 0
+  MooseX::MakeImmutable: 0.002
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.001_3
+  repository: http://github.com/robertkrimen/getopt-chain/tree/master
+version: 0.002
