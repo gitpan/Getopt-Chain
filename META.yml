@@ -4,6 +4,7 @@ author:
   - 'Robert Krimen, C<< <rkrimen at cpan.org> >>'
 build_requires:
   Test::Most: 0
+  Test::Trap: 0
 distribution_type: module
 generated_by: 'Module::Install version 0.760'
 license: perl
@@ -20,8 +21,8 @@ requires:
   Getopt::Long: 2.37
   Hash::Param: 0
   Moose: 0
-  MooseX::MakeImmutable: 0.002
+  MooseX::MakeImmutable: 0.02
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/robertkrimen/getopt-chain/tree/master
-version: 0.003
+version: 0.004
