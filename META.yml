@@ -25,4 +25,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/robertkrimen/getopt-chain/tree/master
-version: 0.004
+version: 0.005
