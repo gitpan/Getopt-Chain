@@ -1,12 +1,15 @@
 ---
-abstract: 'Option and subcommand processing in the style svn(1) and git(1)'
+abstract: 'Command-line processing like svn and git'
 author:
   - 'Robert Krimen, C<< <rkrimen at cpan.org> >>'
 build_requires:
+  ExtUtils::MakeMaker: 6.42
   Test::Most: 0
   Test::Trap: 0
+configure_requires:
+  ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.760'
+generated_by: 'Module::Install version 0.87'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -19,10 +22,11 @@ no_index:
 requires:
   Carp::Clan::Share: 0
   Getopt::Long: 2.37
-  Hash::Param: 0
   Moose: 0
+  MooseX::AttributeHelpers: 0
   MooseX::MakeImmutable: 0.02
+  Path::Dispatcher: 0
 resources:
   license: http://dev.perl.org/licenses/
-  repository: http://github.com/robertkrimen/getopt-chain/tree/master
-version: 0.005
+  repository: http://github.com/robertkrimen/Getopt-Chain/tree/master
+version: 0.010

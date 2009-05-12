@@ -4,11 +4,26 @@ use strict;
 use warnings;
 
 use Moose;
+use MooseX::AttributeHelpers;
 use Getopt::Chain::Carp;
+
+use Getopt::Chain;
+
+use Getopt::Long qw/GetOptionsFromArray/;
+use Hash::Param;
+
+use constant DEBUG => Getopt::Chain->DEBUG;
+our $DEBUG = DEBUG;
 
 =head1 NAME
 
 Getopt::Chain::Context - Per-command context
+
+=head1 WARNING
+
+This documentation is out of date and needs an update. For the real documentation:
+
+    perldoc -m Getopt::Chain::Context 
 
 =head1 DESCRIPTION
 
@@ -114,216 +129,242 @@ Returns an ARRAY reference (still a copy) when called in scalar context
     # In the "edit" subroutine:
     $context->remaining_arguments # Returns ( )
 
-=head2 $context->abort( [ ... ] )
-
-Immediately exit the process with exit code of -1
-
-If the optional ... (message) is given, then print that out to STDERR first
-
-=head1 SEE ALSO
-
-L<Getopt::Chain>
-
 =cut
 
-use Hash::Param;
-
-has options => qw/reader _options lazy_build 1 isa HashRef/;
-sub _build_options {
-    my $self = shift;
-    return {};
+# Should probably move these into Getopt::Chain
+# ...or even... Getopt::Longer :)
+sub is_option_like($) {
+    return $_[0] =~ m/^-/;
 }
 
-has options_ => qw/is ro isa Hash::Param lazy_build 1/, handles => {qw/option param options params/};
-sub _build_options_ {
-    my $self = shift;
-    return Hash::Param->new(params => $self->_options);
+sub consume_arguments($$) { # Will modify arguments, reflecting consumption
+    my $argument_schema = shift;
+    my $arguments = shift;
+
+    my %options;
+    eval {
+        if ($argument_schema && @$argument_schema) {
+            Getopt::Long::Configure(qw/pass_through/);
+            GetOptionsFromArray($arguments, \%options, @$argument_schema);
+        }
+    };
+    croak "There was an error option-processing arguments: $@" if $@;
+
+    if (@$arguments && is_option_like $arguments->[0]) {
+        croak "Have remainder arguments after option-processing: ", $arguments->[0];
+    }
+
+    return ( \%options );
 }
 
-has chain => qw/is ro isa ArrayRef/, default => sub { [] };
+has dispatcher => qw/is ro required 1/;
+
+has _options => qw/is ro isa Hash::Param lazy_build 1/, handles => {qw/option param options params/};
+sub _build__options {
+    my $self = shift;
+    return Hash::Param->new(params => {});
+}
 
 has stash => qw/is ro isa HashRef/, default => sub { {} };
 
-sub BUILD {
-    my $self = shift;
-    my $given = shift;
-}
+# The original arguments from the commandline (or wherever)... read only!
+has arguments => qw/metaclass Collection::Array reader _arguments required 1 lazy 1 isa ArrayRef/, default => sub { [] }, provides => {qw/
+    elements    arguments
+/};
 
-sub push {
-    my $self = shift;
-    my $link = Getopt::Chain::Context::Link->new(context => $self, @_);
-    push @{ $self->chain }, $link;
-    return $link;
-}
+# The arguments remaining after each step does argument consuming... written by the step!
+has remaining_arguments => qw/metaclass Collection::Array accessor _remaining_arguments isa ArrayRef/, provides => {qw/
+    elements    remaining_arguments
+    shift       shift_remaining_argument
+    first       first_remaining_argument
+/};
 
-sub pop {
+has steps => qw/metaclass Collection::Array reader _steps required 1 lazy 1 isa ArrayRef/, default => sub { [] }, provides => {qw/
+    elements    steps   
+    first       first_step
+    last        last_step
+    push        push_step
+    pop         pop_step
+/};
+
+has _path => qw/metaclass Collection::Array is ro required 1 lazy 1 isa ArrayRef/, default => sub { [] }, provides => {qw/
+    elements    path
+    push        push_path
+/};
+
+sub initialize_run {
     my $self = shift;
-    pop @{ $self->chain };
+    $self->_remaining_arguments( [ $self->arguments ] );
 }
 
 sub run {
     my $self = shift;
-    my $path = shift || "";
 
-    my @path = grep { length $_ } split m/[ \/]+/, $path;
-
-    my $link = $self->link;
-    my $processor = $self->link(0)->processor;
-    for (@path) {
-        # TODO Probably call this 'resolve'
-        $processor = $processor->commands->{$_} or croak "Couldn't traverse $path: $_ not found";
-    }
-
-    $self->push(processor => $processor, command => $path[-1],
-        arguments => $link->_arguments, remaining_arguments => $link->_remaining_arguments, options => scalar $link->options);
-
-    $processor->run->($self, @_);
-
-    $self->pop;
+    $self->initialize_run;
+    1 while $self->next;
 }
 
-sub update {
+sub next {
     my $self = shift;
 
-    my $link = $self->link;
-
-    my $local_options = $self->local_options_;
-    my $options = $self->options_;
-
-    for my $key ($local_options->params) {
-        $options->param($key => scalar $local_options->param($key));
+    unless (defined $self->_remaining_arguments) { # Haven't been run yet
+        $self->initialize_run;
     }
+
+    my $run_path = join ' ', $self->path;
+    warn "Context::next ", $self->path_as_string, " ($run_path)\n"  if $DEBUG;
+
+    
+    {
+        # $self->dispatcher->run( $run_path, $self ); # This will (indirectly) call ->run_step( ... ) below
+        my $dispatch = $self->dispatcher->dispatch( $run_path );
+        if ( my @matches = $dispatch->matches ) {
+            for my $match ($dispatch->matches) {
+                my $result = $match->result;
+                last if $match->run( $self ); # ->run_step returned true
+            }
+        }
+    }
+    my $next_path_part;
+    $self->push_path( $next_path_part ) if $next_path_part = $self->next_path_part;
+    return $next_path_part;
 }
 
-sub link {
+sub next_path_part {
     my $self = shift;
-    my $at = shift;
 
-    $at = -1 unless defined $at;
-    return $self->chain->[$at];
+    return unless defined (my $argument = $self->first_remaining_argument);
+    croak "Had remainder arguments after option-processing: ", $argument, " @ ", $self->path_as_string, " [", join ' ', $self->remaining_arguments, "]" if is_option_like $argument;
+    return $self->shift_remaining_argument; # Same as $argument, really
+}
+
+sub at_end {
+    my $self = shift;
+    return ! defined $self->first_remaining_argument;
+}
+
+sub path_as_string {
+    my $self = shift;
+    return join '/', '^START', $self->path, ($self->at_end ? '$' : ());
+}
+
+sub run_step { # Called from within the Path::Dispatcher rule
+    my $self = shift;
+    my $argument_schema = shift;
+    my $run = shift;
+    my $control = shift;
+
+    $argument_schema = [] unless defined $argument_schema;
+    
+    my $step = $self->add_step( argument_schema => $argument_schema, run => $run ); 
+    return 1 if $step->run( $control ); # We consumed and ran, so we need to rollback
+    $self->pop_step; # Rollback, since we didn't actually run
+    return 0;
+}
+
+sub add_step {
+    my $self = shift;
+    my %given = @_; # Should be: argument_schema, run
+
+    my $parent = $self->last_step; # Could be undef
+    my $step = Getopt::Chain::Context::Step->new( context => $self, parent => $parent, path => [ $self->path ], arguments => [ $self->remaining_arguments ], %given );
+    $self->push_step( $step );
+    return $step;
+}
+
+sub command {
+    my $self = shift;
+    return $self->last_step->last_path_part;
 }
 
 sub local_option {
     my $self = shift;
-    return $self->link->option(@_);
+    return $self->last_step->option( @_ );
 }
 
 sub local_options {
     my $self = shift;
-    return $self->link->options(@_);
+    return $self->last_step->options( @_ );
 }
 
-sub local_options_ {
+sub local_path {
     my $self = shift;
-    return $self->link->options_(@_);
+    return $self->last_step->path;
 }
 
-for my $method (qw/processor command arguments remaining_arguments remainder valid/) {
-    no strict 'refs';
-    *$method = sub {
-        my $self = shift;
-        return $self->link->$method(@_);
-    };
-}
-
-sub abort {
-    my $self = shift;
-    print STDERR "$0: ";
-    if (@_) {
-        my @__ = @_; # Modification of read-only value ...
-        chomp $__[-1];
-        print STDERR join "", @__, "\n";
-    }
-    else {
-        print STDERR "Unknown error: aborting";
-    }
-    exit -1;
-}
-
-package Getopt::Chain::Context::Link;
+package Getopt::Chain::Context::Step;
 
 use Moose;
 use Getopt::Chain::Carp;
 
 use Hash::Param;
 
-has context => qw/is ro required 1 isa Getopt::Chain::Context/, handles => [qw/all_options/];
+use constant DEBUG => Getopt::Chain->DEBUG;
+our $DEBUG = DEBUG;
 
-has processor => qw/is ro required 1 isa Getopt::Chain/;
+has context => qw/is ro required 1 isa Getopt::Chain::Context/;
 
-has command => qw/is ro required 1 isa Maybe[Str]/;
-
-has options => qw/reader _options required 1 isa HashRef/;
-
-has options_ => qw/is ro isa Hash::Param lazy_build 1/, handles => {qw/option param options params/};
-sub _build_options_ {
+has _options => qw/is ro isa Hash::Param lazy_build 1/, handles => {qw/option param options params/};
+sub _build__options {
     my $self = shift;
-    return Hash::Param->new(params => $self->_options);
+    return Hash::Param->new( params => {} );
 }
 
-has arguments => qw/is ro reader _arguments required 1 isa ArrayRef/;
-sub arguments {
-    my @arguments = @{ shift->_arguments };
-    return wantarray ? @arguments : \@arguments; 
-}
+has arguments => qw/metaclass Collection::Array accessor _arguments required 1 isa ArrayRef/, provides => {qw/
+    elements arguments
+/};
 
-has remaining_arguments => qw/is ro reader _remaining_arguments required 1 isa ArrayRef/;
-sub remaining_arguments {
-    my @arguments = @{ shift->_remaining_arguments };
-    return wantarray ? @arguments : \@arguments; 
-}
+has argument_schema => qw/metaclass Collection::Array accessor _argument_schema required 1 isa ArrayRef/, provides => {qw/
+    elements argument_schema
+/};
 
-sub remainder {
-    return scalar shift->remaining_arguments;
-}
+has run => qw/is ro reader _run isa Maybe[CodeRef]/;
 
-has valid => qw/is rw/;
+has _path => qw/metaclass Collection::Array is ro required 1 lazy 1 isa ArrayRef init_arg path/, default => sub { [] }, provides => {qw/
+    elements    path
+    last        last_path_part
+    push        push_path
+/};
+
+has parent => qw/is ro isa Maybe[Getopt::Chain::Context::Step]/;
+
+sub run {
+    my $self = shift;
+    my $control = shift;
+
+    my $options = {};
+    my $arguments = [ $self->arguments ];
+    my $argument_schema = [ $self->argument_schema ];
+
+    warn "Context::Step::run ", $self->context->path_as_string, " [@$arguments] {@$argument_schema}\n" if $DEBUG;
+
+    eval {
+        $options = Getopt::Chain::Context::consume_arguments $argument_schema, $arguments;
+    };
+    if ($@) {
+        chomp( my $error = $@ );
+        croak "At ", join( '/', $self->path ), " with arguments [@$arguments]: $@";
+    }
+
+    my $at_end = ! @$arguments;
+
+    unless ($at_end || $control->{always_run}) {
+        warn "Context::Step::run ", $self->context->path_as_string, " SKIP\n" if DEBUG;
+        return;
+    }
+
+    $self->context->_remaining_arguments( $arguments );
+
+    while (my ($key, $value) = each %$options) {
+        $self->option( $key => $value );
+        $self->context->option( $key => $value ); # TODO Better way to do this...
+    }
+
+    my $run = $self->_run;
+    $run->( $self->context, @$arguments ) if $run;
+
+    return 1;
+}
 
 1;
 
-__END__
-
-sub options {
-    my $self = shift;
-
-    if (@_) {
-        return $self->option(@_);
-    }
-    else {
-        return wantarray ? keys %{ $self->_options } : $self->_options;
-    }
-}
-
-sub option {
-    my $self = shift;
-
-    if (@_ == 0) {
-        return $self->options;
-    }
-
-    if (@_ == 1) {
-
-        my $option = shift;
-
-        unless (exists $self->_options->{$option}) {
-            return wantarray ? () : undef;
-        }
-
-        if (ref $self->_options->{$option} eq 'ARRAY') {
-            return (wantarray)
-              ? @{ $self->_options->{$option} }
-              : $self->_options->{$option}->[0];
-        }
-        else {
-            return (wantarray)
-              ? ($self->_options->{$option})
-              : $self->_options->{$option};
-        }
-    }
-    elsif (@_ > 1) {
-        my @options = map { scalar $self->option($_) } @_;
-        return wantarray ? @options : \@options;
-    }
-}
-
-1;
