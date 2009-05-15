@@ -12,11 +12,11 @@ Getopt::Chain - Command-line processing like svn and git
 
 =head1 VERSION
 
-Version 0.010
+Version 0.011
 
 =cut
 
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 =head1 SYNPOSIS 
 
@@ -165,6 +165,12 @@ L<App::Cmd>
 
 L<MooseX::App::Cmd>
 
+=head1 ACKNOWLEDGEMENTS
+
+Sartak for L<Path::Dispatcher>
+
+obra for inspiration on the CLI (via Prophet & Sd: L<http://syncwith.us/>)
+
 =head1 AUTHOR
 
 Robert Krimen, C<< <rkrimen at cpan.org> >>
@@ -214,9 +220,6 @@ L<http://cpanratings.perl.org/d/Getopt-Chain>
 L<http://search.cpan.org/dist/Getopt-Chain>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
 
 
 =head1 COPYRIGHT & LICENSE
