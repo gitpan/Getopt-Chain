@@ -165,7 +165,14 @@ sub _build__options {
     return Hash::Param->new(params => {});
 }
 
-has stash => qw/is ro isa HashRef/, default => sub { {} };
+has _stash => qw/is ro isa HashRef/, default => sub { {} };
+sub stash {
+    my $self = shift;
+    return $self->_stash unless @_;
+    my $stash = $self->_stash;
+    while ( @_ ) { my ($k, $v) = (shift @_, shift @_); $stash->{$k} = $v }
+    return $stash;
+}
 
 # The original arguments from the commandline (or wherever)... read only!
 has arguments => qw/metaclass Collection::Array reader _arguments required 1 lazy 1 isa ArrayRef/, default => sub { [] }, provides => {qw/
@@ -238,14 +245,14 @@ sub next_path_part {
     return $self->shift_remaining_argument; # Same as $argument, really
 }
 
-sub at_end {
+sub last {
     my $self = shift;
     return ! defined $self->first_remaining_argument;
 }
 
 sub path_as_string {
     my $self = shift;
-    return join '/', '^START', $self->path, ($self->at_end ? '$' : ());
+    return join '/', '^START', $self->path, ($self->last ? '$' : ());
 }
 
 sub run_step { # Called from within the Path::Dispatcher rule
@@ -332,6 +339,11 @@ sub run {
     my $self = shift;
     my $control = shift;
 
+    my @arguments;
+    if ($control->{arguments_from_1} && defined $1) {
+        push @arguments, grep { length } split m/\s+/, $1;
+    }
+
     my $options = {};
     my $arguments = [ $self->arguments ];
     my $argument_schema = [ $self->argument_schema ];
@@ -355,13 +367,15 @@ sub run {
 
     my $last = ! @$arguments;
 
-    unless ($last) {
+    unless ($last || $control->{always_run}) {
         warn "Context::Step::run ", $self->context->path_as_string, " SKIP\n" if DEBUG;
         return;
     }
 
+    push @arguments, @$arguments; # TODO: Test this
+
     my $run = $self->_run;
-    $run->( $self->context, @$arguments ) if $run;
+    $run->( $self->context, @arguments ) if $run;
 
     return 1;
 }
