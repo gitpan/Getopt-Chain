@@ -30,4 +30,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/robertkrimen/Getopt-Chain/tree/master
-version: 0.014
+version: 0.015
