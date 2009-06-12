@@ -2,6 +2,13 @@ TODO:
     - Test with '--' (huh?)
     - Implement 'defer' sugar/backing
 
+0.017 Friday June 12 09:36:24 PDT 2009:
+    - Added '--' path conditional and better builder parsing
+    - Made ::Context and ::Context::Step more explicit with starting_arguments
+      ::Context now uses parsing_arguments (instead of remaining_arguments)
+      Reinstituted unparsed option-like arguments as a fatal error (except
+      during --)
+    
 0.016 Friday June 05 09:36:58 PDT 2009:
     - Removed Test::Trap dependency
 

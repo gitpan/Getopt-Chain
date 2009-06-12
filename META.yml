@@ -22,11 +22,11 @@ requires:
   Carp::Clan::Share: 0
   Getopt::Long: 2.37
   Hash::Param: 0
-  Moose: 0
+  Moose: 0.76
   MooseX::AttributeHelpers: 0
   MooseX::MakeImmutable: 0.02
   Path::Dispatcher: 0
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/robertkrimen/Getopt-Chain/tree/master
-version: 0.016
+version: 0.017

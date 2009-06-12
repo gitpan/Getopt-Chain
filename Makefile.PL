@@ -33,7 +33,7 @@ _END_
 Carp::Clan::Share
 Getopt::Long 2.37
 Hash::Param
-Moose
+Moose 0.76
 MooseX::AttributeHelpers
 MooseX::MakeImmutable 0.02
 Path::Dispatcher
