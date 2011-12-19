@@ -44,16 +44,14 @@ on 'banana cherry' => sub {
 
 on 'banana --' => sub {
     my $ctx = shift;
-# TODO Do this right
-#    warn "@_";
+    warn "@_";
 };
 
 under 'cherry' => sub {
 
     on '--' => sub {
         my $ctx = shift;
-# TODO Do this right
-#        warn "@_";
+        warn "@_";
     };
 
 };

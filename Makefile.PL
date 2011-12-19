@@ -1,43 +1,60 @@
-use inc::Module::Install;
 
-name 'Getopt-Chain';
-all_from 'lib/Getopt/Chain.pm';
+use strict;
+use warnings;
 
-resources repository => 'http://github.com/robertkrimen/Getopt-Chain/tree/master';
 
-{
-    require ExtUtils::MakeMaker;
-    use strict;
-    no strict 'refs';
 
-    my $libscan = \&{"ExtUtils::MM_Any::libscan"};
-    *{"ExtUtils::MM_Any::libscan"} = sub {
-        return '' unless $libscan->(@_);
-        return '' if $_[1] =~ /\.sw[p-z]$/;
-        return $_[1];
-    };
+use ExtUtils::MakeMaker 6.30;
+
+
+
+my %WriteMakefileArgs = (
+  'ABSTRACT' => 'Command-line processing like svn and git',
+  'AUTHOR' => 'Robert Krimen <robertkrimen@gmail.com>',
+  'BUILD_REQUIRES' => {
+    'Test::Most' => '0'
+  },
+  'CONFIGURE_REQUIRES' => {
+    'ExtUtils::MakeMaker' => '6.30'
+  },
+  'DISTNAME' => 'Getopt-Chain',
+  'EXE_FILES' => [],
+  'LICENSE' => 'perl',
+  'NAME' => 'Getopt::Chain',
+  'PREREQ_PM' => {
+    'Carp::Clan::Share' => '0',
+    'Getopt::Long' => '2.37',
+    'Hash::Param' => '0',
+    'Moose' => '0',
+    'MooseX::AttributeHelpers' => '0',
+    'MooseX::MakeImmutable' => '0.02',
+    'Path::Dispatcher' => '0',
+    'Path::Dispatcher::Declarative' => '0'
+  },
+  'VERSION' => '0.017',
+  'test' => {
+    'TESTS' => 't/*.t'
+  }
+);
+
+
+unless ( eval { ExtUtils::MakeMaker->VERSION(6.56) } ) {
+  my $br = delete $WriteMakefileArgs{BUILD_REQUIRES};
+  my $pp = $WriteMakefileArgs{PREREQ_PM};
+  for my $mod ( keys %$br ) {
+    if ( exists $pp->{$mod} ) {
+      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod};
+    }
+    else {
+      $pp->{$mod} = $br->{$mod};
+    }
+  }
 }
 
-if (-e 'inc/.author') {
-    my $all_from = join '/', 'lib', split m/-/, name . '.pm';
-    `perldoc -tF $all_from > README` if ! -e 'README' || (stat $all_from)[9] > (stat 'README')[9];
-}
+delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
+  unless eval { ExtUtils::MakeMaker->VERSION(6.52) };
 
-{
-    map { my ($pk, $vr) = split m/\s/; build_requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
-Test::Most
-#Test::Trap
-_END_
+WriteMakefile(%WriteMakefileArgs);
 
-    map { my ($pk, $vr) = split m/\s/; requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
-Carp::Clan::Share
-Getopt::Long 2.37
-Hash::Param
-Moose 0.76
-MooseX::AttributeHelpers
-MooseX::MakeImmutable 0.02
-Path::Dispatcher
-_END_
-}
 
-WriteAll;
+
